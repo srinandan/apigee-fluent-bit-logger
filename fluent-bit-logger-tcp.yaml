@@ -1,0 +1,153 @@
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#apiVersion: v1
+#kind: Namespace
+#metadata:
+#  name: apps
+---
+# fluent-bit Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: apigee-fluent-bit-tcp
+  namespace: apps
+  labels:
+    app: apigee-fluent-bit-tcp
+spec:
+  ports:
+  - name: fluent-bit-tcp
+    port: 5140
+    protocol: TCP
+    targetPort: 5140
+  selector:
+    app: apigee-fluent-bit-tcp
+---
+# fluent-bit Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apigee-fluent-bit-tcp
+  namespace: apps
+  labels:
+    app: apigee-fluent-bit-tcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apigee-fluent-bit-tcp
+  template:
+    metadata:
+      labels:
+        app: apigee-fluent-bit-tcp
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: fluent-bit
+        image: fluent/fluent-bit
+        ports:
+        - containerPort: 5140        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        env:
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /etc/secret/client_secret.json #ensure the file name matches the kubectl secret            
+        volumeMounts:
+        - name: config-volume
+          mountPath:  /fluent-bit/etc
+        - name: svc-account-volume
+          mountPath: /etc/secret
+          readOnly: true
+      terminationGracePeriodSeconds: 30
+      serviceAccountName: apigee-logger-sa
+      volumes:
+      - name: config-volume
+        configMap:
+          defaultMode: 0644
+          name: apigee-fluent-bit-config-tcp
+      - name: svc-account-volume
+        secret:
+          defaultMode: 420
+          secretName: logging-svc-account          
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: cloud.google.com/gke-nodepool
+                operator: In
+                values:
+                - apps
+            weight: 100
+---
+# fluent-bit ConfigMap, contains config files.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: apigee-fluent-bit-config-tcp
+  namespace: apps
+data:
+  fluent-bit.conf: |-  
+    [SERVICE]
+        Flush        1
+        Log_Level    info
+        Daemon       Off
+        Parsers_File parsers.conf
+        HTTP_Server  Off
+        HTTP_Listen  0.0.0.0
+        HTTP_Port    5140
+
+    [INPUT]
+        Name         syslog
+        Listen       0.0.0.0
+        Port         5140
+        Mode         tcp
+        Parser       syslog-rfc5424
+
+    [OUTPUT]
+        Name         stdout
+        Match        *
+
+#    [OUTPUT]
+#        Name                       stackdriver
+#        Match                      *
+#        google_service_credentials /etc/secret/client_secret.json
+#        Resource                   global
+
+  parsers.conf: |-
+    [PARSER]
+        Name         json
+        Format       json
+        Time_Key     time
+        Time_Format  %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep    Off
+
+    [PARSER]
+        Name        syslog-rfc5424
+        Format      regex
+        Regex       ^\<(?<pri>[0-9]{1,5})\>1 (?<time>[^ ]+) (?<host>[^ ]+) (?<ident>[^ ]+) (?<pid>[-0-9]+) (?<msgid>[^ ]+) (?<extradata>(\[(.*?)\]|-)) (?<message>.+)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep   On        
+
+#    [FILTER]
+#        Name         parser
+#        Match        *
+#        Key_Name     log
+#        Parser       syslog-rfc5424
+#        Reserve_Data On
+#        Unescape_Key On

@@ -1,0 +1,17 @@
+<APIProxy revision="17" name="mocktarget">
+    <DisplayName></DisplayName>
+    <Description></Description>
+    <CreatedAt>1624285336556</CreatedAt>
+    <LastModifiedAt>1624285336556</LastModifiedAt>
+    <BasePaths>/mocktarget/json</BasePaths>
+    <Policies>
+        <Policy>Log-Response</Policy>
+        <Policy>Spike-Arrest-1</Policy>
+    </Policies>
+    <ProxyEndpoints>
+        <ProxyEndpoint>default</ProxyEndpoint>
+    </ProxyEndpoints>
+    <TargetEndpoints>
+        <TargetEndpoint>default</TargetEndpoint>
+    </TargetEndpoints>
+</APIProxy>

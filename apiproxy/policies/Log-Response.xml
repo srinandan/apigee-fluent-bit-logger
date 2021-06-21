@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<MessageLogging async="false" continueOnError="false" enabled="true" name="Log-Response">
+    <DisplayName>Log Response</DisplayName>
+    <Syslog>
+        <Message>[tag="{organization.name}.{apiproxy.name}.{environment.name}"] {response.content}</Message>
+        <Host>apigee-fluent-bit-tcp.apps.svc.cluster.local</Host>
+        <Port>5140</Port>
+        <Protocol>TCP</Protocol>
+        <FormatMessage>true</FormatMessage>
+    </Syslog>
+</MessageLogging>
